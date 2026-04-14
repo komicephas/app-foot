@@ -1,0 +1,10 @@
+{
+  "name": "gestion-foot/app",
+  "description": "Application web de gestion d'un club de football en PHP natif",
+  "type": "project",
+  "require": {
+    "php": "^8.0",
+    "phpoffice/phpspreadsheet": "^1.29",
+    "mpdf/mpdf": "^8.2"
+  }
+}

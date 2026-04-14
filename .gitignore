@@ -1,0 +1,6 @@
+/vendor/
+/tmp/
+/uploads/photos/*
+!/uploads/photos/.gitkeep
+.DS_Store
+Thumbs.db
