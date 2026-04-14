@@ -8,14 +8,19 @@ use Mpdf\Mpdf;
 
 ini_set('pcre.backtrack_limit', '5000000');
 
-function localImagePath(string $path): ?string
+function localFileUri(string $path): ?string
 {
     $realPath = realpath($path);
     if ($realPath === false || !is_file($realPath)) {
         return null;
     }
 
-    return str_replace('\\', '/', $realPath);
+    $normalized = str_replace('\\', '/', $realPath);
+    if (!str_starts_with($normalized, '/')) {
+        $normalized = '/' . $normalized;
+    }
+
+    return 'file://' . $normalized;
 }
 
 function createCardThumbnail(?string $filename): ?string
@@ -39,9 +44,9 @@ function createCardThumbnail(?string $filename): ?string
         mkdir($targetDir, 0777, true);
     }
 
-    $target = $targetDir . '/' . md5($source . 'card-thumb') . '.jpg';
+    $target = $targetDir . '/' . md5($source . 'card-thumb-v2') . '.jpg';
     if (is_file($target)) {
-        return str_replace('\\', '/', realpath($target) ?: $target);
+        return localFileUri($target);
     }
 
     [$width, $height, $type] = $info;
@@ -56,7 +61,7 @@ function createCardThumbnail(?string $filename): ?string
     ];
 
     if (!isset($createMap[$type]) || !function_exists($createMap[$type])) {
-        return str_replace('\\', '/', $source);
+        return localFileUri($source);
     }
 
     $src = @$createMap[$type]($source);
@@ -64,7 +69,7 @@ function createCardThumbnail(?string $filename): ?string
         return null;
     }
 
-    $size = 280;
+    $size = 220;
     $dst = imagecreatetruecolor($size, $size);
     $white = imagecolorallocate($dst, 255, 255, 255);
     imagefill($dst, 0, 0, $white);
@@ -80,7 +85,7 @@ function createCardThumbnail(?string $filename): ?string
     imagedestroy($src);
     imagedestroy($dst);
 
-    return str_replace('\\', '/', realpath($target) ?: $target);
+    return localFileUri($target);
 }
 
 $pdo = getPdo();
@@ -119,99 +124,64 @@ $fullName = mb_strtoupper(trim($member['nom'] . ' ' . $member['prenom']));
 $typeLabel = ucfirst((string) $member['type']);
 $numberLabel = (string) $member['numero_membre'];
 $yearLabel = (string) $member['annee_inscription'];
-$photoPath = createCardThumbnail($member['photo']);
-$logoPath = localImagePath(__DIR__ . '/../assets/img/logo_club.png');
-$ballPath = localImagePath(__DIR__ . '/../assets/img/ballon.png');
-$initials = mb_substr($member['prenom'], 0, 1) . mb_substr($member['nom'], 0, 1);
+$photoUri = createCardThumbnail($member['photo']);
+$logoUri = localFileUri(__DIR__ . '/../assets/img/logo_club.png');
+$ballUri = localFileUri(__DIR__ . '/../assets/img/ballon.png');
+$initials = mb_strtoupper(mb_substr($member['prenom'], 0, 1) . mb_substr($member['nom'], 0, 1));
 
 $html = '
 <style>
 @page { margin: 0; }
 body { margin: 0; padding: 0; }
+table { border-collapse: collapse; border-spacing: 0; }
 .card {
     width: 85mm;
     height: 54mm;
+    table-layout: fixed;
     overflow: hidden;
-    page-break-inside: avoid;
     background: #003087;
     color: #ffffff;
     font-family: dejavusans, sans-serif;
 }
 .top {
-    height: 13mm;
-    padding: 3.2mm 4mm 1.5mm;
-    background: linear-gradient(135deg, #00235f, #003087 60%, #0d59cf);
-}
-.top-table {
-    width: 100%;
-    border-collapse: collapse;
-}
-.top-left {
-    width: 67mm;
-    vertical-align: top;
-}
-.top-right {
-    width: 10mm;
-    text-align: right;
-    vertical-align: top;
-}
-.club {
-    font-size: 10pt;
-    font-weight: bold;
-    letter-spacing: 0.8px;
-    line-height: 1.2;
-}
-.subtitle {
-    margin-top: 1mm;
-    font-size: 6pt;
-    color: #d9e4ff;
-}
-.logo {
-    width: 8mm;
-    height: 8mm;
+    height: 14mm;
+    background: #0b3d96;
 }
 .year {
     height: 7mm;
-    line-height: 7mm;
-    text-align: center;
-    background: #d71920;
+    background: #dc1c24;
     color: #ffffff;
-    font-size: 11pt;
     font-weight: bold;
+    font-size: 11pt;
     letter-spacing: 2px;
+    text-align: center;
 }
 .bottom {
-    height: 34mm;
-    padding: 3mm 4mm 4mm;
-    background:
-        radial-gradient(circle at right bottom, rgba(40,167,69,0.18), transparent 18mm),
-        linear-gradient(180deg, #0a3b94, #002661);
+    height: 33mm;
+    background: #103f98;
 }
-.bottom-table {
-    width: 100%;
-    border-collapse: collapse;
+.pad-x { padding-left: 4mm; padding-right: 4mm; }
+.club {
+    font-size: 10pt;
+    font-weight: bold;
+    letter-spacing: 0.7px;
+    color: #ffffff;
 }
-.photo-col {
-    width: 20mm;
-    vertical-align: top;
+.subtitle {
+    font-size: 6pt;
+    color: #d7e4ff;
 }
-.info-col {
-    width: 39mm;
-    vertical-align: top;
-    padding-left: 2.5mm;
-}
-.badge-col {
-    width: 14mm;
-    vertical-align: top;
-    text-align: center;
+.logo {
+    width: 7mm;
+    height: 7mm;
 }
 .photo-box {
     width: 17mm;
     height: 19mm;
-    border: 0.6mm solid rgba(255,255,255,0.92);
-    border-radius: 2.4mm;
-    background: rgba(255,255,255,0.12);
-    overflow: hidden;
+    border: 0.5mm solid #ffffff;
+    border-radius: 2mm;
+    background: #2957ac;
+    text-align: center;
 }
 .photo {
     width: 17mm;
@@ -221,109 +191,115 @@ body { margin: 0; padding: 0; }
     width: 17mm;
     height: 19mm;
     line-height: 19mm;
-    text-align: center;
+    color: #ffffff;
     font-size: 13pt;
     font-weight: bold;
-    color: #ffffff;
 }
-.pill {
-    margin-top: 2mm;
-    padding: 1mm 2mm;
-    border-radius: 10mm;
-    background: rgba(255,255,255,0.14);
+.status {
+    margin-top: 1.5mm;
+    display: inline-block;
+    padding: 0.8mm 1.8mm;
+    background: #ffffff;
+    color: #0d2f74;
     font-size: 5.8pt;
     font-weight: bold;
-    letter-spacing: 0.4px;
-    text-align: center;
+    border-radius: 8mm;
 }
 .name {
-    font-size: 9pt;
+    font-size: 9.2pt;
     font-weight: bold;
-    line-height: 1.25;
     color: #ffffff;
+    line-height: 1.2;
 }
 .role {
-    margin-top: 1mm;
-    font-size: 6.2pt;
-    color: #d9e4ff;
+    margin-top: 0.8mm;
+    font-size: 6pt;
+    color: #d7e4ff;
 }
 .info-panel {
     margin-top: 2mm;
-    background: rgba(255,255,255,0.96);
-    border-radius: 2.2mm;
-    padding: 1.8mm 2.2mm;
-    color: #16284e;
+    background: #ffffff;
+    border-radius: 2mm;
+    padding: 1.6mm 2mm;
+    color: #11295f;
 }
-.info-row {
+.info-line {
     font-size: 6.2pt;
     line-height: 1.45;
 }
-.label {
-    color: #617397;
+.label { color: #6a7ea8; }
+.value { font-weight: bold; color: #11295f; }
+.side {
+    text-align: center;
 }
-.value {
-    font-weight: bold;
-    color: #0e1e40;
-}
-.crest {
-    margin-top: 1mm;
-    width: 12mm;
-    height: 12mm;
+.ball {
+    width: 11mm;
+    height: 11mm;
+    background: #ffffff;
     border-radius: 50%;
-    background: rgba(255,255,255,0.92);
-    padding: 1.4mm;
+    padding: 1.3mm;
 }
 .type-box {
     margin-top: 2mm;
-    background: rgba(255,255,255,0.14);
+    background: rgba(255,255,255,0.16);
+    border: 0.35mm solid rgba(255,255,255,0.24);
     border-radius: 2mm;
-    padding: 1.2mm 1mm;
+    padding: 1mm 0.5mm;
     font-size: 5.8pt;
     font-weight: bold;
-    letter-spacing: 0.5px;
+    line-height: 1.2;
 }
 </style>
-<div class="card">
-    <div class="top">
-        <table class="top-table">
-            <tr>
-                <td class="top-left">
-                    <div class="club">' . h($clubName) . '</div>
-                    <div class="subtitle">Carte officielle de membre du club</div>
-                </td>
-                <td class="top-right">' . ($logoPath ? '<img class="logo" src="' . h($logoPath) . '" alt="Logo">' : '') . '</td>
-            </tr>
-        </table>
-    </div>
-    <div class="year">' . h($yearLabel) . '</div>
-    <div class="bottom">
-        <table class="bottom-table">
-            <tr>
-                <td class="photo-col">
-                    <div class="photo-box">' .
-                        ($photoPath
-                            ? '<img class="photo" src="' . h($photoPath) . '" alt="Photo membre">'
-                            : '<div class="photo-placeholder">' . h($initials) . '</div>') . '
-                    </div>
-                    <div class="pill">MEMBRE ACTIF</div>
-                </td>
-                <td class="info-col">
-                    <div class="name">' . h($fullName) . '</div>
-                    <div class="role">Categorie : membre ' . h(strtolower($typeLabel)) . '</div>
-                    <div class="info-panel">
-                        <div class="info-row"><span class="label">Numero :</span> <span class="value">' . h($numberLabel) . '</span></div>
-                        <div class="info-row"><span class="label">Type :</span> <span class="value">' . h($typeLabel) . '</span></div>
-                        <div class="info-row"><span class="label">Valide pour :</span> <span class="value">' . h($yearLabel) . '</span></div>
-                    </div>
-                </td>
-                <td class="badge-col">
-                    ' . ($ballPath ? '<img class="crest" src="' . h($ballPath) . '" alt="Ballon">' : '') . '
-                    <div class="type-box">TYPE<br>' . h(mb_strtoupper($typeLabel)) . '</div>
-                </td>
-            </tr>
-        </table>
-    </div>
-</div>';
+
+<table class="card">
+    <tr>
+        <td class="top pad-x">
+            <table width="100%">
+                <tr>
+                    <td width="88%" valign="top">
+                        <div class="club">' . h($clubName) . '</div>
+                        <div class="subtitle">Carte officielle de membre du club</div>
+                    </td>
+                    <td width="12%" align="right" valign="top">
+                        ' . ($logoUri ? '<img src="' . h($logoUri) . '" class="logo" alt="Logo">' : '') . '
+                    </td>
+                </tr>
+            </table>
+        </td>
+    </tr>
+    <tr>
+        <td class="year">' . h($yearLabel) . '</td>
+    </tr>
+    <tr>
+        <td class="bottom pad-x">
+            <table width="100%">
+                <tr>
+                    <td width="26%" valign="top">
+                        <div class="photo-box">
+                            ' . ($photoUri
+                                ? '<img src="' . h($photoUri) . '" class="photo" alt="Photo">'
+                                : '<div class="photo-placeholder">' . h($initials) . '</div>') . '
+                        </div>
+                        <div class="status">MEMBRE ACTIF</div>
+                    </td>
+                    <td width="52%" valign="top">
+                        <div class="name">' . h($fullName) . '</div>
+                        <div class="role">Categorie : membre ' . h(strtolower($typeLabel)) . '</div>
+                        <div class="info-panel">
+                            <div class="info-line"><span class="label">Numero :</span> <span class="value">' . h($numberLabel) . '</span></div>
+                            <div class="info-line"><span class="label">Type :</span> <span class="value">' . h($typeLabel) . '</span></div>
+                            <div class="info-line"><span class="label">Valide pour :</span> <span class="value">' . h($yearLabel) . '</span></div>
+                        </div>
+                    </td>
+                    <td width="22%" valign="top" class="side">
+                        ' . ($ballUri ? '<img src="' . h($ballUri) . '" class="ball" alt="Ballon">' : '') . '
+                        <div class="type-box">TYPE<br>' . h(mb_strtoupper($typeLabel)) . '</div>
+                    </td>
+                </tr>
+            </table>
+        </td>
+    </tr>
+</table>';
 
 $mpdf->WriteHTML($html);
 $filename = 'carte-membre-' . preg_replace('/[^A-Za-z0-9\-]+/', '-', strtolower($member['numero_membre'])) . '.pdf';
